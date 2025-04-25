@@ -23,7 +23,7 @@ import lombok.NoArgsConstructor;
 public abstract class BaseEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long Id;
+    private Long id;
     
     @CreationTimestamp
     @Column(updatable = false, nullable = false)
