@@ -44,4 +44,8 @@ public class User extends BaseEntity {
     @Embedded
     @NotNull
     private Address address;
+
+    @NotBlank
+    @Column(nullable = false, unique = true)
+    private String cpf;
 }
