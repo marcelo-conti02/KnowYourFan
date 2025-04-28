@@ -1,19 +1,25 @@
 package com.furia.know_your_fan.service;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.furia.know_your_fan.entity.Document;
+import com.furia.know_your_fan.entity.User;
+import com.furia.know_your_fan.repository.DocumentRepository;
+import lombok.RequiredArgsConstructor;
+import org.springframework.core.io.FileSystemResource;
+import org.springframework.http.*;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.LinkedMultiValueMap;
+import org.springframework.util.MultiValueMap;
+import org.springframework.web.client.RestTemplate;
+import org.springframework.web.multipart.MultipartFile;
+
+import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.List;
-
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.multipart.MultipartFile;
-
-import com.furia.know_your_fan.entity.Document;
-import com.furia.know_your_fan.entity.User;
-import com.furia.know_your_fan.repository.DocumentRepository;
-
-import lombok.RequiredArgsConstructor;
 
 @Service
 @RequiredArgsConstructor
@@ -24,6 +30,8 @@ public class DocumentService {
     private final UserService userService;
 
     private static final Path UPLOAD_DIR = Paths.get(System.getProperty("user.dir"), "uploads", "documents");
+    private static final String OCR_API_KEY = "K85203198988957";
+    private static final String OCR_API_URL = "https://api.ocr.space/parse/image";
 
     public Document uploadAndSaveDocument(MultipartFile file, Long userId, String documentType) throws Exception {
         // saves the file
@@ -42,6 +50,7 @@ public class DocumentService {
         document.setUser(user);
         document.setDocumentType(documentType);
         document.setFilePath(filePath.toString());
+        document.setValidated(false);
 
         // saves on database
         return documentRepository.save(document);
@@ -49,5 +58,46 @@ public class DocumentService {
 
     public List<Document> findByUserId(Long userId) {
         return documentRepository.findByUserId(userId);
+    }
+
+    // validate document with OCR AI
+    private boolean validateDocument(File file) {
+        try {
+            RestTemplate restTemplate = new RestTemplate();
+
+            MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
+            body.add("file", new FileSystemResource(file));
+            body.add("language", "por");
+            body.add("isOverlayRequired", "false");
+
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.MULTIPART_FORM_DATA);
+            headers.set("apikey", OCR_API_KEY);
+
+            HttpEntity<MultiValueMap<String, Object>> requestEntity = new HttpEntity<>(body, headers);
+
+            ResponseEntity<String> response = restTemplate.postForEntity(OCR_API_URL, requestEntity, String.class);
+
+            if (response.getStatusCode() == HttpStatus.OK) {
+                String responseBody = response.getBody();
+                System.out.println("Resposta OCR: " + responseBody);
+
+                // Parse JSON
+                ObjectMapper mapper = new ObjectMapper();
+                JsonNode root = mapper.readTree(responseBody);
+
+                JsonNode parsedResults = root.path("ParsedResults");
+                if (parsedResults.isArray() && parsedResults.size() > 0) {
+                    String parsedText = parsedResults.get(0).path("ParsedText").asText();
+                    return parsedText != null && !parsedText.trim().isEmpty();
+                }
+            } else {
+                System.err.println("Erro na requisição OCR: " + response.getStatusCode());
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+        return false; 
     }
 }

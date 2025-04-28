@@ -1,5 +1,6 @@
 package com.furia.know_your_fan.entity;
 
+import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
@@ -24,4 +25,7 @@ public class Document extends BaseEntity {
 
     @NotBlank
     private String filePath;
+
+    @Column(name = "validated")
+    private Boolean validated;
 }
