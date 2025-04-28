@@ -1,5 +1,6 @@
 package com.furia.know_your_fan.entity;
 
+import jakarta.persistence.Table;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 
 import jakarta.persistence.Column;
@@ -20,6 +21,7 @@ import lombok.Setter;
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
+@Table(name = "users")
 public class User extends BaseEntity {
     @Column(nullable = false)
     private String name;

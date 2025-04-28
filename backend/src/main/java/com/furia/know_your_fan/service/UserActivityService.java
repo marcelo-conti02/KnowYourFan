@@ -22,6 +22,6 @@ public class UserActivityService {
     }
 
     public List<UserActivity> findByUserId(Long userId) {
-        return userActivityRepository.findByUserIdOrderByActivityDateDesc(userId);
+        return userActivityRepository.findByUserIdOrderByDateDesc(userId);
     }
 }
