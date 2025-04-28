@@ -5,6 +5,7 @@ import com.furia.know_your_fan.service.DocumentService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 
@@ -15,15 +16,24 @@ public class DocumentController {
 
     private final DocumentService documentService;
 
-    @PostMapping
-    public ResponseEntity<Document> uploadDocument(@RequestBody Document document) {
-        Document savedDocument = documentService.save(document);
-        return ResponseEntity.ok(savedDocument);
-    }
-
     @GetMapping("/user/{userId}")
     public ResponseEntity<List<Document>> getDocumentsByUserId(@PathVariable Long userId) {
         List<Document> documents = documentService.findByUserId(userId);
         return ResponseEntity.ok(documents);
+    }
+
+    @PostMapping("/upload")
+    public ResponseEntity<Document> uploadDocument(
+            @RequestParam("file") MultipartFile file,
+            @RequestParam("userId") Long userId,
+            @RequestParam("documentType") String documentType) {
+
+        try {
+            Document savedDocument = documentService.uploadAndSaveDocument(file, userId, documentType);
+            return ResponseEntity.ok(savedDocument);
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.internalServerError().build();
+        }
     }
 }
