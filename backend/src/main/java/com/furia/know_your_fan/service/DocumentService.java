@@ -47,16 +47,20 @@ public class DocumentService {
         // find user
         User user = userService.findById(userId).orElseThrow(() -> new RuntimeException("User not found"));
 
+        // validate with OCR and compare CPF
+        boolean isValid = validateDocument(filePath.toFile(), user.getCpf());
+
+        // only save document if its validated
+        if (!isValid) {
+            throw new RuntimeException("Invalid document: CPF does not match the user's.");
+        }
+
         // create document
         Document document = new Document();
         document.setUser(user);
         document.setDocumentType(documentType);
         document.setFilePath(filePath.toString());
-        document.setValidated(false);
-
-        // validate with OCR and compare CPF
-        boolean isValid = validateDocument(filePath.toFile(), user.getCpf());
-        document.setValidated(isValid);
+        document.setValidated(true);
 
         // saves on database
         return documentRepository.save(document);
