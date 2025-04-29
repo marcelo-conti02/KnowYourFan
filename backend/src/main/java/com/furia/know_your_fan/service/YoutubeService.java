@@ -1,9 +1,13 @@
 package com.furia.know_your_fan.service;
 
-import com.furia.know_your_fan.entity.FanProfile;
-import com.furia.know_your_fan.repository.FanProfileRepository;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.furia.know_your_fan.entity.FanProfile;
+import com.furia.know_your_fan.entity.YoutubeActivity;
+import com.furia.know_your_fan.entity.YoutubeSubscription;
+import com.furia.know_your_fan.repository.FanProfileRepository;
+import com.furia.know_your_fan.repository.YoutubeActivityRepository;
+import com.furia.know_your_fan.repository.YoutubeSubscriptionRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
@@ -12,7 +16,9 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestTemplate;
 
 import java.time.Instant;
+import java.util.Arrays;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 @Service
@@ -21,6 +27,8 @@ import java.util.Map;
 public class YoutubeService {
 
     private final FanProfileRepository fanProfileRepository;
+    private final YoutubeSubscriptionRepository youtubeSubscriptionRepository;
+    private final YoutubeActivityRepository youtubeActivityRepository;
 
     @Value("${youtube.client-id}")
     private String clientId;
@@ -66,6 +74,8 @@ public class YoutubeService {
             fanProfile.setYoutubeTokenExpiry(Instant.now().plusSeconds(expiresIn));
 
             updateYoutubeData(fanProfile, accessToken);
+            updateYoutubeSubscriptions(fanProfile, accessToken);
+            updateYoutubeActivities(fanProfile, accessToken);
 
             fanProfileRepository.save(fanProfile);
         } else {
@@ -78,12 +88,83 @@ public class YoutubeService {
         HttpHeaders headers = new HttpHeaders();
         headers.setBearerAuth(accessToken);
         HttpEntity<Void> entity = new HttpEntity<>(headers);
-        
+
         ResponseEntity<String> channelResponse = restTemplate.exchange(CHANNELS_URL, HttpMethod.GET, entity, String.class);
         JsonNode channels = new ObjectMapper().readTree(channelResponse.getBody());
         JsonNode snippet = channels.path("items").get(0).path("snippet");
 
         fanProfile.setYoutubeUsername(snippet.path("title").asText());
         fanProfile.setYoutubeChannelId(channels.path("items").get(0).path("id").asText());
+    }
+
+    private void updateYoutubeSubscriptions(FanProfile fanProfile, String accessToken) throws Exception {
+        RestTemplate restTemplate = new RestTemplate();
+        HttpHeaders headers = new HttpHeaders();
+        headers.setBearerAuth(accessToken);
+        HttpEntity<Void> entity = new HttpEntity<>(headers);
+
+        ResponseEntity<String> response = restTemplate.exchange(SUBSCRIPTIONS_URL, HttpMethod.GET, entity, String.class);
+        JsonNode items = new ObjectMapper().readTree(response.getBody()).path("items");
+
+        youtubeSubscriptionRepository.deleteByFanProfile(fanProfile);
+
+        List<String> esportsKeywords = Arrays.asList("furia", "loud", "mibr", "pain");
+
+        for (JsonNode item : items) {
+            JsonNode snippet = item.path("snippet");
+            String title = snippet.path("title").asText().toLowerCase();
+
+            // Filters esports-related channels
+            if (esportsKeywords.stream().anyMatch(title::contains)) {
+                YoutubeSubscription subscription = new YoutubeSubscription();
+                subscription.setFanProfile(fanProfile);
+                subscription.setChannelId(snippet.path("resourceId").path("channelId").asText());
+                subscription.setChannelTitle(snippet.path("title").asText());
+                subscription.setChannelThumbnailUrl(snippet.path("thumbnails").path("default").path("url").asText());
+
+                youtubeSubscriptionRepository.save(subscription);
+            }
+        }
+    }
+
+    private void updateYoutubeActivities(FanProfile fanProfile, String accessToken) throws Exception {
+        RestTemplate restTemplate = new RestTemplate();
+        HttpHeaders headers = new HttpHeaders();
+        headers.setBearerAuth(accessToken);
+        HttpEntity<Void> entity = new HttpEntity<>(headers);
+
+        ResponseEntity<String> response = restTemplate.exchange(ACTIVITIES_URL, HttpMethod.GET, entity, String.class);
+        JsonNode items = new ObjectMapper().readTree(response.getBody()).path("items");
+
+        youtubeActivityRepository.deleteByFanProfile(fanProfile);
+
+        List<String> esportsKeywords = Arrays.asList("furia", "loud", "mibr", "pain");
+
+        for (JsonNode item : items) {
+            JsonNode snippet = item.path("snippet");
+            String title = snippet.path("title").asText().toLowerCase();
+            String description = snippet.path("description").asText().toLowerCase();
+
+            // Filters activities related to esports teams
+            if (esportsKeywords.stream().anyMatch(keyword -> title.contains(keyword) || description.contains(keyword))) {
+                YoutubeActivity activity = new YoutubeActivity();
+                activity.setFanProfile(fanProfile);
+                activity.setType(snippet.path("type").asText());
+                activity.setTitle(snippet.path("title").asText());
+                activity.setDescription(snippet.path("description").asText());
+                activity.setPublishedAt(Instant.parse(snippet.path("publishedAt").asText()));
+
+                JsonNode contentDetails = item.path("contentDetails");
+                JsonNode upload = contentDetails.path("upload");
+                JsonNode like = contentDetails.path("like");
+                if (!upload.isMissingNode()) {
+                    activity.setVideoId(upload.path("videoId").asText());
+                } else if (!like.isMissingNode()) {
+                    activity.setVideoId(like.path("videoId").asText());
+                }
+
+                youtubeActivityRepository.save(activity);
+            }
+        }
     }
 }

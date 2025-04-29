@@ -9,4 +9,5 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface YoutubeActivityRepository extends JpaRepository<YoutubeActivity, Long>{
      List<YoutubeActivity> findByFanProfile(FanProfile fanProfile);
+     void deleteByFanProfile(FanProfile fanProfile);
 }
