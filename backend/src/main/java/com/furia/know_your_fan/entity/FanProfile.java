@@ -1,9 +1,11 @@
 package com.furia.know_your_fan.entity;
 
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 
+import jakarta.persistence.Column;
 import jakarta.persistence.ElementCollection;
 import jakarta.persistence.Entity;
 import jakarta.persistence.JoinColumn;
@@ -41,6 +43,14 @@ public class FanProfile extends BaseEntity {
     @PastOrPresent
     private LocalDateTime lastInteractionDate;
 
-    @ElementCollection
-    private Map<String, String> platformUsernames; // example: {"steam": "username", "twitch": "username"}
+    private String youtubeChannelId;
+    private String youtubeUsername;
+    
+     @Column(length = 2048)
+    private String youtubeAccessToken;
+
+    @Column(length = 2048)
+    private String youtubeRefreshToken;
+
+    private Instant youtubeTokenExpiry;
 }
