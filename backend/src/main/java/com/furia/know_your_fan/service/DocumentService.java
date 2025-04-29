@@ -20,6 +20,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 @Service
 @RequiredArgsConstructor
@@ -52,6 +54,10 @@ public class DocumentService {
         document.setFilePath(filePath.toString());
         document.setValidated(false);
 
+        // validate with OCR and compare CPF
+        boolean isValid = validateDocument(filePath.toFile(), user.getCpf());
+        document.setValidated(isValid);
+
         // saves on database
         return documentRepository.save(document);
     }
@@ -61,7 +67,7 @@ public class DocumentService {
     }
 
     // validate document with OCR AI
-    private boolean validateDocument(File file) {
+    private boolean validateDocument(File file, String userCpf) {
         try {
             RestTemplate restTemplate = new RestTemplate();
 
@@ -80,7 +86,7 @@ public class DocumentService {
 
             if (response.getStatusCode() == HttpStatus.OK) {
                 String responseBody = response.getBody();
-                System.out.println("Resposta OCR: " + responseBody);
+                System.out.println("OCR response: " + responseBody);
 
                 // Parse JSON
                 ObjectMapper mapper = new ObjectMapper();
@@ -89,15 +95,40 @@ public class DocumentService {
                 JsonNode parsedResults = root.path("ParsedResults");
                 if (parsedResults.isArray() && parsedResults.size() > 0) {
                     String parsedText = parsedResults.get(0).path("ParsedText").asText();
-                    return parsedText != null && !parsedText.trim().isEmpty();
+
+                    // extract cpf from text
+                    String extractedCpf = extractCpf(parsedText);
+                    String cleanUserCpf = userCpf.replaceAll("\\D", "");
+
+                    System.out.println("CPF do usuário: " + cleanUserCpf);
+                    System.out.println("CPF extraído: " + extractedCpf);
+
+                    return extractedCpf != null && extractedCpf.equals(cleanUserCpf);
+
                 }
             } else {
-                System.err.println("Erro na requisição OCR: " + response.getStatusCode());
+                System.err.println("Error on OCR requisition" + response.getStatusCode());
             }
         } catch (Exception e) {
             e.printStackTrace();
         }
 
-        return false; 
+        return false;
     }
+
+    // extract cpf from raw OCR text
+    private String extractCpf(String text) {
+        Pattern lineWithCpf = Pattern
+                .compile("(?i)(CPF[\\s:\\-]*)?(\\d{3}[\\.\\s]?\\d{3}[\\.\\s]?\\d{3}[\\-\\s]?\\d{2})");
+        Matcher matcher = lineWithCpf.matcher(text);
+
+        while (matcher.find()) {
+            String cpf = matcher.group(2).replaceAll("\\D", "");
+            if (cpf.length() == 11)
+                return cpf;
+        }
+
+        return null;
+    }
+
 }
