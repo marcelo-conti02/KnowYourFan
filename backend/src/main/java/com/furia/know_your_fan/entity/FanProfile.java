@@ -3,7 +3,6 @@ package com.furia.know_your_fan.entity;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Map;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.ElementCollection;
@@ -45,7 +44,7 @@ public class FanProfile extends BaseEntity {
 
     private String youtubeChannelId;
     private String youtubeUsername;
-    
+
      @Column(length = 2048)
     private String youtubeAccessToken;
 
