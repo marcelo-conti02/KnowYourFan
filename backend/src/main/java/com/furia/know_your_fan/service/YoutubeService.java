@@ -13,13 +13,16 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.LinkedMultiValueMap;
+import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestTemplate;
+import org.springframework.http.converter.FormHttpMessageConverter;
+import org.springframework.http.converter.StringHttpMessageConverter;
+import org.springframework.http.converter.json.MappingJackson2HttpMessageConverter;
 
 import java.time.Instant;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
@@ -44,22 +47,42 @@ public class YoutubeService {
     private static final String SUBSCRIPTIONS_URL = "https://www.googleapis.com/youtube/v3/subscriptions?part=snippet&mine=true&maxResults=50";
     private static final String ACTIVITIES_URL = "https://www.googleapis.com/youtube/v3/activities?part=snippet,contentDetails&mine=true&maxResults=50";
 
+    private RestTemplate createRestTemplate() {
+        RestTemplate restTemplate = new RestTemplate();
+
+        FormHttpMessageConverter formConverter = new FormHttpMessageConverter();
+        formConverter.setSupportedMediaTypes(Arrays.asList(MediaType.APPLICATION_FORM_URLENCODED));
+
+        StringHttpMessageConverter stringConverter = new StringHttpMessageConverter();
+        stringConverter.setSupportedMediaTypes(Arrays.asList(
+                MediaType.APPLICATION_JSON,
+                MediaType.TEXT_PLAIN,
+                MediaType.APPLICATION_FORM_URLENCODED));
+
+        restTemplate.setMessageConverters(Arrays.asList(
+                formConverter,
+                stringConverter,
+                new MappingJackson2HttpMessageConverter()));
+
+        return restTemplate;
+    }
+
     public void connectYoutubeAccount(Long fanProfileId, String authCode) throws Exception {
         FanProfile fanProfile = fanProfileRepository.findById(fanProfileId)
                 .orElseThrow(() -> new RuntimeException("FanProfile not found"));
 
-        RestTemplate restTemplate = new RestTemplate();
+        RestTemplate restTemplate = createRestTemplate();
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
 
-        Map<String, String> params = new HashMap<>();
-        params.put("code", authCode);
-        params.put("client_id", clientId);
-        params.put("client_secret", clientSecret);
-        params.put("redirect_uri", redirectUri);
-        params.put("grant_type", "authorization_code");
+        MultiValueMap<String, String> params = new LinkedMultiValueMap<>();
+        params.add("code", authCode);
+        params.add("client_id", clientId);
+        params.add("client_secret", clientSecret);
+        params.add("redirect_uri", redirectUri);
+        params.add("grant_type", "authorization_code");
 
-        HttpEntity<Map<String, String>> request = new HttpEntity<>(params, headers);
+        HttpEntity<MultiValueMap<String, String>> request = new HttpEntity<>(params, headers);
         ResponseEntity<String> response = restTemplate.postForEntity(TOKEN_URL, request, String.class);
 
         if (response.getStatusCode() == HttpStatus.OK) {
@@ -79,17 +102,18 @@ public class YoutubeService {
 
             fanProfileRepository.save(fanProfile);
         } else {
-            throw new RuntimeException("Failed to fetch YouTube access token");
+            throw new RuntimeException("YouTube connection failed: " + response.getStatusCode() + " - " + response.getBody());
         }
     }
 
     private void updateYoutubeData(FanProfile fanProfile, String accessToken) throws Exception {
-        RestTemplate restTemplate = new RestTemplate();
+        RestTemplate restTemplate = createRestTemplate();
         HttpHeaders headers = new HttpHeaders();
         headers.setBearerAuth(accessToken);
         HttpEntity<Void> entity = new HttpEntity<>(headers);
 
-        ResponseEntity<String> channelResponse = restTemplate.exchange(CHANNELS_URL, HttpMethod.GET, entity, String.class);
+        ResponseEntity<String> channelResponse = restTemplate.exchange(CHANNELS_URL, HttpMethod.GET, entity,
+                String.class);
         JsonNode channels = new ObjectMapper().readTree(channelResponse.getBody());
         JsonNode snippet = channels.path("items").get(0).path("snippet");
 
@@ -98,12 +122,13 @@ public class YoutubeService {
     }
 
     private void updateYoutubeSubscriptions(FanProfile fanProfile, String accessToken) throws Exception {
-        RestTemplate restTemplate = new RestTemplate();
+        RestTemplate restTemplate = createRestTemplate();
         HttpHeaders headers = new HttpHeaders();
         headers.setBearerAuth(accessToken);
         HttpEntity<Void> entity = new HttpEntity<>(headers);
 
-        ResponseEntity<String> response = restTemplate.exchange(SUBSCRIPTIONS_URL, HttpMethod.GET, entity, String.class);
+        ResponseEntity<String> response = restTemplate.exchange(SUBSCRIPTIONS_URL, HttpMethod.GET, entity,
+                String.class);
         JsonNode items = new ObjectMapper().readTree(response.getBody()).path("items");
 
         youtubeSubscriptionRepository.deleteByFanProfile(fanProfile);
@@ -114,7 +139,7 @@ public class YoutubeService {
             JsonNode snippet = item.path("snippet");
             String title = snippet.path("title").asText().toLowerCase();
 
-            // Filters esports-related channels
+            // filters esports-related channels
             if (esportsKeywords.stream().anyMatch(title::contains)) {
                 YoutubeSubscription subscription = new YoutubeSubscription();
                 subscription.setFanProfile(fanProfile);
@@ -128,7 +153,7 @@ public class YoutubeService {
     }
 
     private void updateYoutubeActivities(FanProfile fanProfile, String accessToken) throws Exception {
-        RestTemplate restTemplate = new RestTemplate();
+        RestTemplate restTemplate = createRestTemplate();
         HttpHeaders headers = new HttpHeaders();
         headers.setBearerAuth(accessToken);
         HttpEntity<Void> entity = new HttpEntity<>(headers);
@@ -145,8 +170,9 @@ public class YoutubeService {
             String title = snippet.path("title").asText().toLowerCase();
             String description = snippet.path("description").asText().toLowerCase();
 
-            // Filters activities related to esports teams
-            if (esportsKeywords.stream().anyMatch(keyword -> title.contains(keyword) || description.contains(keyword))) {
+            // filters activities related to esports teams
+            if (esportsKeywords.stream()
+                    .anyMatch(keyword -> title.contains(keyword) || description.contains(keyword))) {
                 YoutubeActivity activity = new YoutubeActivity();
                 activity.setFanProfile(fanProfile);
                 activity.setType(snippet.path("type").asText());
