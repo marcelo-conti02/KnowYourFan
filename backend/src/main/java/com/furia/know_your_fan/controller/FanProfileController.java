@@ -1,10 +1,15 @@
 package com.furia.know_your_fan.controller;
 
 import com.furia.know_your_fan.entity.FanProfile;
+import com.furia.know_your_fan.entity.User;
 import com.furia.know_your_fan.service.FanProfileService;
 import lombok.RequiredArgsConstructor;
+
+import java.util.List;
+
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+
 
 @RestController
 @RequestMapping("/api/fan-profiles")
@@ -27,4 +32,11 @@ public class FanProfileController {
         }
         return ResponseEntity.ok(fanProfile);
     }
+
+    @GetMapping
+    public ResponseEntity<List<FanProfile>> getAllFanProfiles() {
+        List<FanProfile> fanProfiles = fanProfileService.findAll();
+        return ResponseEntity.ok(fanProfiles);
+    }
+    
 }

@@ -11,12 +11,14 @@
     </header>
     
     <main class="main-content">
-      <!-- Conteúdo principal aqui (se necessário) -->
+      <UsersTable/>
     </main>
   </div>
 </template>
 
 <script setup>
+import UsersTable from './UsersTable.vue';
+
 </script>
 
 <style scoped>

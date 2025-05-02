@@ -16,7 +16,13 @@ const UserAPI = {
     getAll: () => api.get('users')
 }
 
+const FanProfileAPI = {
+    getAll: () => api.get('fan-profiles'),
+    getById: (id) => api.get(`fan-profiles/user/${id}`)
+}
+
 
 export default {
-    users: UserAPI
+    users: UserAPI,
+    fanProfiles: FanProfileAPI
 };

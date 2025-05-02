@@ -1,5 +1,7 @@
 package com.furia.know_your_fan.service;
 
+import java.util.List;
+
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -21,5 +23,9 @@ public class FanProfileService {
 
     public FanProfile findByUserId(Long userId) {
         return fanProfileRepository.findByUserId(userId);
+    }
+
+    public List<FanProfile> findAll() {
+        return fanProfileRepository.findAll();
     }
 }
